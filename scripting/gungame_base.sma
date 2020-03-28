@@ -32,7 +32,7 @@
 #include <hamsandwich>
 
 // defines to be left alone
-new const GG_VERSION[] =	"2.00B3.6";
+new const GG_VERSION[] =	"2.00B3.7";
 #define LANG_PLAYER_C		-76 // for gungame_print (arbitrary number)
 #define TNAME_SAVE		pev_noise3 // for blocking game_player_equip and player_weaponstrip
 #define MAX_PARAMS		32 // for _ggn_gungame_print and _ggn_gungame_hudmessage
@@ -3404,6 +3404,9 @@ public show_welcome(id)
 // show the required kills message
 stock show_required_kills(id,always_individual=0)
 {
+	// weapon-specific warmup, who cares
+	if(warmup > 0 && warmupWeapon[0]) return 0;
+
 	if(always_individual || !get_pcvar_num(gg_teamplay))
 		return gungame_hudmessage(id,3.0,"%L: %i / %i",id,"REQUIRED_KILLS",score[id],get_level_goal(level[id],id));
 
@@ -3511,6 +3514,8 @@ stock change_score(id,value,refill=1,effect_team=1)
 	// check for level down
 	if(score[id] < 0)
 	{
+		if(value < 0) show_required_kills(id);
+
 		// can't go down below level 1
 		if(level[id] <= 1)
 		{
@@ -3576,6 +3581,22 @@ stock change_level(id,value,just_joined=0,show_message=1,always_score=0,play_sou
 
 	new teamplay = get_pcvar_num(gg_teamplay), team;
 	if(teamplay) team = get_user_team(id);
+
+	// teamplay, on a valid team
+	if(teamplay && (team == 1 || team == 2))
+	{
+		// not effecting team, but setting me to something that doesn't match team
+		// OR
+		// effecting team, and not even starting on same thing as team
+		if((!effect_team && level[id] + value != teamLevel[team]) || (effect_team && level[id] != teamLevel[team]))
+		{
+			log_amx("MISSYNCH -- id: %i, value: %i, just_joined: %i, show_message: %i, always_score: %i, play_sounds: %i, effect_team: %i, team: %i, level: %i, teamlevel: %i, usertime: %i, score: %i, teamscore: %i, lvlweapon: %s, teamlvlweapon: %s",
+				id,value,just_joined,show_message,always_score,play_sounds,effect_team,team,level[id],teamLevel[team],get_user_time(id,1),score[id],teamScore[team],lvlWeapon[id],teamLvlWeapon[team]);
+
+			log_message("MISSYNCH -- id: %i, value: %i, just_joined: %i, show_message: %i, always_score: %i, play_sounds: %i, effect_team: %i, team: %i, level: %i, teamlevel: %i, usertime: %i, score: %i, teamscore: %i, lvlweapon: %s, teamlvlweapon: %s",
+				id,value,just_joined,show_message,always_score,play_sounds,effect_team,team,level[id],teamLevel[team],get_user_time(id,1),score[id],teamScore[team],lvlWeapon[id],teamLvlWeapon[team]);
+		}
+	}
 
 	// this will put us below level 1
 	if(level[id] + value < 1)
@@ -6242,6 +6263,14 @@ stock ham_strip_weapon(id,weapon[])
 	ExecuteHamB(Ham_Item_Kill,wEnt);
 
 	set_pev(id,pev_weapons,pev(id,pev_weapons) & ~(1<<wId));
+
+	// CS
+	if(cstrike && (wId == CSW_C4 || wId == CSW_SMOKEGRENADE || wId == CSW_FLASHBANG || wId == CSW_HEGRENADE))
+		cs_set_user_bpammo(id,wId,0);
+
+	// DOD
+	else if(dod && (wId == DODW_HANDGRENADE || wId == DODW_STICKGRENADE || wId == DODW_MILLS_BOMB))
+		dod_set_user_ammo(id,wId,0);
 
 	return 1;
 }
