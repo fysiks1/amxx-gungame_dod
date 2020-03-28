@@ -32,7 +32,7 @@
 #include <hamsandwich>
 
 // defines to be left alone
-new const GG_VERSION[] =	"2.00B3.5";
+new const GG_VERSION[] =	"2.00B3.6";
 #define LANG_PLAYER_C		-76 // for gungame_print (arbitrary number)
 #define TNAME_SAVE		pev_noise3 // for blocking game_player_equip and player_weaponstrip
 #define MAX_PARAMS		32 // for _ggn_gungame_print and _ggn_gungame_hudmessage
@@ -3332,7 +3332,11 @@ stock refill_ammo(id,current=0)
 	}
 
 	// keep melee weapon out if we had it out
-	if(curweapon && curWpnMelee) engclient_cmd(id,curWpnName);
+	if(curweapon && curWpnMelee)
+	{
+		engclient_cmd(id,curWpnName);
+		client_cmd(id,curWpnName);
+	}
 
 	fws_refilled_ammo(id,wpnid);
 
@@ -3543,11 +3547,6 @@ stock change_score(id,value,refill=1,effect_team=1)
 	get_user_menu(id,menu,dummy[0]);
 	if(menu == level_menu) show_level_menu(id);
 
-	if(value < 0)
-		show_required_kills(id);
-	else
-		client_cmd(id,"speak ^"buttons/bell1.wav^"");
-
 	if(refill && get_pcvar_num(gg_refill_on_kill)) refill_ammo(id);
 
 	// alright I really got it this time WHOOPS
@@ -3555,6 +3554,9 @@ stock change_score(id,value,refill=1,effect_team=1)
 
 	if(teamplay && effect_team && (team == 1 || team == 2) && teamScore[team] != score[id])
 		teamplay_update_score(team,score[id],id,1); // direct
+
+	if(value < 0) show_required_kills(id);
+	else client_cmd(id,"speak ^"buttons/bell1.wav^"");
 
 	return 0;
 }
@@ -3908,6 +3910,43 @@ stock change_level(id,value,just_joined=0,show_message=1,always_score=0,play_sou
 	return 1;
 }
 
+// forces a player to a level, skipping a lot of important stuff.
+// it's assumed that this is used as a result of "id" being leveled
+// up because his teammate leveled up in teamplay.
+stock set_level_noifandsorbuts(id,newLevel,play_sounds=1)
+{
+	new oldLevel = level[id];
+
+	level[id] = newLevel;
+	get_level_weapon(level[id],lvlWeapon[id],23);
+
+	if(play_sounds)
+	{
+		// level up!
+		if(newLevel >= oldLevel) play_sound_by_cvar(id,gg_sound_levelup);
+
+		// level down :(
+		else play_sound_by_cvar(id,gg_sound_leveldown);
+	}
+
+	// refresh menus
+	new player, menu;
+	for(player=1;player<=maxPlayers;player++)
+	{
+		if(!is_user_connected(player)) continue;
+		get_user_menu(player,menu,dummy[0]);
+
+		if(menu == scores_menu) show_scores_menu(player);
+		else if(menu == level_menu) show_level_menu(player);
+	}
+
+	// give weapon right away?
+	if(get_pcvar_num(gg_turbo) && is_user_alive(id)) give_level_weapon(id);
+	else show_progress_display(id); // still show display anyway
+
+	return 1;
+}
+
 // get rid of a player's star
 public end_star(taskid)
 {
@@ -4077,11 +4116,16 @@ stock give_level_weapon(id,notify=1,verify=1)
 	if(verify && !notify)
 	{
 		get_mod_weaponname(oldWeapon,wpnName,23);
-		if(wpnName[0] && fws_is_melee(wpnName)) engclient_cmd(id,wpnName);
+		if(wpnName[0] && fws_is_melee(wpnName))
+		{
+			engclient_cmd(id,wpnName);
+			client_cmd(id,wpnName);
+		}
 		else if(lvlWeapon[id][0])
 		{
 			formatex(wpnName,23,"weapon_%s",lvlWeapon[id]);
 			engclient_cmd(id,wpnName);
+			client_cmd(id,wpnName);
 		}
 	}
 
@@ -4090,6 +4134,7 @@ stock give_level_weapon(id,notify=1,verify=1)
 	{
 		formatex(wpnName,23,"weapon_%s",lvlWeapon[id]);
 		engclient_cmd(id,wpnName);
+		client_cmd(id,wpnName);
 	}
 
 	// make sure that we get this...
@@ -4829,7 +4874,7 @@ stock teamplay_update_score(team,newScore,exclude=0,direct=0)
 }
 
 // change the level of a team
-stock teamplay_update_level(team,newLevel,exclude=0,direct=0)
+stock teamplay_update_level(team,newLevel,exclude=0,direct=1)
 {
 	 if(team != 1 && team != 2) return;
 
@@ -4841,7 +4886,8 @@ stock teamplay_update_level(team,newLevel,exclude=0,direct=0)
 	 {
 	 	 if(is_user_connected(player) && player != exclude && get_user_team(player) == team)
 	 	 {
-	 	 	if(direct) level[player] = newLevel;
+	 	 	//if(direct) level[player] = newLevel;
+	 	 	if(direct) set_level_noifandsorbuts(player,newLevel);
 			else change_level(player,newLevel-level[player],_,_,1); // always score
 		 }
 	 }
@@ -4886,7 +4932,7 @@ public teamplay_play_lead_sounds(id,oldLevel,Float:playDelay)
 				{
 					params[0] = player;
 					remove_task(TASK_PLAY_LEAD_SOUNDS+player);
-					set_task((player == id) ? playDelay : 0.1,"play_sound_by_cvar_task",TASK_PLAY_LEAD_SOUNDS+player,params,2);
+					set_task((thisTeam == team) ? playDelay : 0.1,"play_sound_by_cvar_task",TASK_PLAY_LEAD_SOUNDS+player,params,2);
 				}
 			}
 		}
@@ -4910,7 +4956,7 @@ public teamplay_play_lead_sounds(id,oldLevel,Float:playDelay)
 
 					params[0] = player;
 					remove_task(TASK_PLAY_LEAD_SOUNDS+player);
-					set_task((player == id) ? playDelay : 0.1,"play_sound_by_cvar_task",TASK_PLAY_LEAD_SOUNDS+player,params,2);
+					set_task((thisTeam == team) ? playDelay : 0.1,"play_sound_by_cvar_task",TASK_PLAY_LEAD_SOUNDS+player,params,2);
 				}
 			}
 		}
@@ -4932,7 +4978,7 @@ public teamplay_play_lead_sounds(id,oldLevel,Float:playDelay)
 
 			params[0] = player;
 			remove_task(TASK_PLAY_LEAD_SOUNDS+player);
-			set_task((player == id) ? playDelay : 0.1,"play_sound_by_cvar_task",TASK_PLAY_LEAD_SOUNDS+player,params,2);
+			set_task((thisTeam == team) ? playDelay : 0.1,"play_sound_by_cvar_task",TASK_PLAY_LEAD_SOUNDS+player,params,2);
 		}
 	}
 }
