@@ -6,6 +6,9 @@
 
 #pragma reqlib "gungame"
 
+// use this to get a player's level (Only valid on 2.00B4 and greater)
+native ggn_get_level(id);
+
 // use this to get the amount of warmup time left ("warmup" var from gungame_base.amxx)
 native ggn_get_warmup_time();
 

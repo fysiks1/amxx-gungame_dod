@@ -15,7 +15,7 @@
 #include <gungame>
 
 // defines
-new const GG_VERSION[] =	"2.00B3"
+new const GG_VERSION[] =	"2.00B4.0"
 #define LANG_PLAYER_C		-76 // for gungame_print (arbitrary number)
 #define MAX_SPAWNS		128 // for gg_dod_spawn_random
 
@@ -123,7 +123,7 @@ public plugin_init()
 	gmsgAmmoShort = get_user_msgid("AmmoShort");
 
 	// events
-	register_event("ResetHUD","event_resethud","be");
+	RegisterHam(Ham_Spawn,"player","ham_player_spawn",1);
 	register_event("CurWeapon","event_curweapon","be","1=1");
 	register_event("RoundState","event_roundstate","a");
 	register_event("PStatus","event_pstatus","abe");
@@ -145,9 +145,6 @@ public plugin_init()
 	RegisterHam(Ham_DOD_RoundRespawn,"trigger_hurt","ham_hurt_reset",1);
 	RegisterHam(Ham_DOD_RoundRespawn,"func_button","ham_button_reset",1);
 	RegisterHam(Ham_DOD_RoundRespawn,"func_breakable","ham_breakable_reset",1);
-
-	// commands
-	register_clcmd("fullupdate","cmd_fullupdate");
 
 	// dod cvars
 	gg_dod_allow_changeteam = register_cvar("gg_dod_allow_changeteam","2");
@@ -237,18 +234,13 @@ public plugin_cfg()
 //**********************************************************************
 
 // a player respawned... probably
-public event_resethud(id)
+public ham_player_spawn(id)
 {
+	if(!is_user_alive(id)) return;
 	if(!ggActive || !ggfw_on_valid_team(id)) return;
 
 	switchOkay[id] = 0;
 	blockSounds[id] = 0;
-
-	// re-entrancy fix
-	static Float:lastThis;
-	new Float:now = get_gametime();
-	if(now == lastThis) return;
-	lastThis = now;
 
 	ggn_notify_player_spawn(id);
 
@@ -769,16 +761,6 @@ public ham_breakable_reset(ent)
 {
 	 mflInEffect &= ~MFL_UNLOCK_TEAMBREAKABLES;
 	 if(!task_exists(TASK_DOMAPFLAGS)) set_task(0.1,"do_mapflags",TASK_DOMAPFLAGS);
-}
-
-//**********************************************************************
-// COMMANDS
-//**********************************************************************
-
-// block fullupdate
-public cmd_fullupdate(id)
-{
-	return PLUGIN_HANDLED;
 }
 
 //**********************************************************************
@@ -1915,6 +1897,10 @@ stock ham_strip_weapon(id,weapon[])
 	ExecuteHamB(Ham_Item_Kill,wEnt);
 
 	set_pev(id,pev_weapons,pev(id,pev_weapons) & ~(1<<wId));
+
+	// DOD
+	if(wId == DODW_HANDGRENADE || wId == DODW_STICKGRENADE || wId == DODW_MILLS_BOMB)
+		dod_set_user_ammo(id,wId,0);
 
 	return 1;
 }

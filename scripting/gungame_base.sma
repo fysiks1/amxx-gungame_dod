@@ -32,7 +32,7 @@
 #include <hamsandwich>
 
 // defines to be left alone
-new const GG_VERSION[] =	"2.00B3.7";
+new const GG_VERSION[] =	"2.00B4.0";
 #define LANG_PLAYER_C		-76 // for gungame_print (arbitrary number)
 #define TNAME_SAVE		pev_noise3 // for blocking game_player_equip and player_weaponstrip
 #define MAX_PARAMS		32 // for _ggn_gungame_print and _ggn_gungame_hudmessage
@@ -88,6 +88,7 @@ gg_autovote_ratio, gg_autovote_delay, gg_autovote_time, gg_ignore_bots, gg_nade_
 gg_block_equips, gg_leader_display, gg_leader_display_x, gg_leader_display_y,
 gg_sound_takenlead, gg_sound_tiedlead, gg_sound_lostlead, gg_lead_sounds, gg_knife_elite,
 gg_teamplay, gg_teamplay_melee_mod, gg_teamplay_nade_mod, gg_suicide_penalty;
+new g_pPointPerKill;
 
 // important per-mod weapon information
 new maxClip[36], maxAmmo[36], weaponSlots[36];
@@ -207,6 +208,7 @@ public plugin_init()
 	gg_extra_nades = register_cvar("gg_extra_nades","1");
 	gg_nade_refresh = register_cvar("gg_nade_refresh","5.0");
 	gg_kills_per_lvl = register_cvar("gg_kills_per_lvl","2");
+	g_pPointPerKill = register_cvar("gg_points_per_kill", "1");
 	gg_ammo_amount = register_cvar("gg_ammo_amount","200");
 	gg_refill_on_kill = register_cvar("gg_refill_on_kill","1");
 	gg_tk_penalty = register_cvar("gg_tk_penalty","1");
@@ -600,6 +602,13 @@ public plugin_natives()
 	register_native("ggn_notify_round_end","_ggn_notify_round_end");
 	register_native("ggn_notify_player_spawn","_ggn_notify_player_spawn");
 	register_native("ggn_notify_player_teamchange","_ggn_notify_player_teamchange");
+	register_native("ggn_get_level","_ggn_get_level");
+}
+
+// native ggn_get_level(id);
+public _ggn_get_level(iPlugin,iParams)
+{
+return level[get_param(1)];
 }
 
 // native ggn_get_warmup_time();
@@ -1508,7 +1517,7 @@ public ham_player_killed(victim,killer,gib)
 		scored = 1;
 
 		// didn't level off of it
-		if(!change_score(killer,1)) show_required_kills(killer);
+		if(!change_score(killer,get_pcvar_num(g_pPointPerKill))) show_required_kills(killer);
 	}
 
 	// refresh grenades
