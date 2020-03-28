@@ -32,7 +32,7 @@
 #include <hamsandwich>
 
 // defines to be left alone
-new const GG_VERSION[] =	"2.00B3";
+new const GG_VERSION[] =	"2.00B3.5";
 #define LANG_PLAYER_C		-76 // for gungame_print (arbitrary number)
 #define TNAME_SAVE		pev_noise3 // for blocking game_player_equip and player_weaponstrip
 #define MAX_PARAMS		32 // for _ggn_gungame_print and _ggn_gungame_hudmessage
@@ -3246,40 +3246,49 @@ stock refill_ammo(id,current=0)
 	}
 
 	// get weapon name and index
-	static fullName[24];
-	new wpnid, curweapon = get_user_weapon(id,dummy[0],dummy[0]);
+	static fullName[24], curWpnName[24];
+	new wpnid, curWpnMelee, curweapon = get_user_weapon(id,dummy[0],dummy[0]);
 
-	if(curweapon) get_mod_weaponname(curweapon,fullName,23);
-	else fullName[0] = 0;
+	// re-init start of strings
+	fullName[0] = 0;
+	curWpnName[0] = 0;
 
-	// I can't remember what I was thinking here but I'm sure that it was well-founded
-	if(current && (!fws_is_melee(fullName) || fws_is_melee(lvlWeapon[id])))
+	// we have a valid current weapon (stupid runtime errors)
+	if(curweapon)
 	{
+		get_mod_weaponname(curweapon,curWpnName,23);
+		curWpnMelee = fws_is_melee(curWpnName);
+	}
+
+	// if we are refilling our current weapon instead of our level weapon,
+	// we actually have a current weapon, and this isn't a melee weapon or the
+	// other alternative, our level weapon, is a melee weapon
+	if(current && curweapon && (!curWpnMelee || fws_is_melee(lvlWeapon[id])))
+	{
+		// refill our current weapon
+		get_mod_weaponname(curweapon,fullName,23);
 		wpnid = curweapon;
 	}
 	else
 	{
+		// refill our level weapon
 		formatex(fullName,23,"weapon_%s",lvlWeapon[id]);
 		wpnid = get_mod_weaponid(fullName);
+
+		// so that we know for sure
+		current = 0;
 	}
 
-	if(!wpnid)
+	// didn't find anything valid to refill somehow
+	if(wpnid < 1 || wpnid > 35 || !fullName[0])
 	{
 		fws_refilled_ammo(id,0);
 		return 0;
 	}
 
-	get_mod_weaponname(wpnid,fullName,23);
-
-	// invalid weapon
-	if(wpnid < 1 || wpnid > 35)
-	{
-		fws_refilled_ammo(id,0);
-		return 0;
-	}
-
-	// no reason to refill a melee weapon
-	if(fws_is_melee(fullName))
+	// no reason to refill a melee weapon.
+	// make use of our curWpnMelee cache here
+	if((current && curWpnMelee) || fws_is_melee(fullName))
 	{
 		fws_refilled_ammo(id,wpnid);
 		return 1;
@@ -3310,21 +3319,20 @@ stock refill_ammo(id,current=0)
 		}
 	}
 
-	// now do stupid grenade stuff
+	// now do stupid grenade stuff.
+	// NOTE: considerably less stupid since we moved CS nade stuff.
 	else
 	{
-		formatex(fullName,23,"weapon_%s",lvlWeapon[id]);
-
-		if(!user_has_weapon(id,get_mod_weaponid(fullName)))
+		// we don't have this nade yet
+		if(!user_has_weapon(id,wpnid))
 		{
 			ham_give_weapon(id,fullName);
 			remove_task(TASK_REFRESH_NADE+id);
 		}
 	}
 
-	// keep melee weapon out
-	get_mod_weaponname(curweapon,fullName,23);
-	if(fullName[0] && fws_is_melee(fullName)) engclient_cmd(id,fullName);
+	// keep melee weapon out if we had it out
+	if(curweapon && curWpnMelee) engclient_cmd(id,curWpnName);
 
 	fws_refilled_ammo(id,wpnid);
 
@@ -3866,7 +3874,9 @@ stock change_level(id,value,just_joined=0,show_message=1,always_score=0,play_sou
 		// turn on FF?
 		if(ff_auto && !ff && is_nade)
 		{
-			server_cmd("mp_friendlyfire 1");
+			server_cmd("mp_friendlyfire 1"); // so console is notified
+			set_cvar_num("mp_friendlyfire",1); // so it changes instantly
+
 			gungame_print(0,0,1,"%L",LANG_PLAYER_C,"FRIENDLYFIRE_ON");
 
 			client_cmd(0,"speak ^"gungame/brass_bell_C.wav^"");
@@ -3887,7 +3897,11 @@ stock change_level(id,value,just_joined=0,show_message=1,always_score=0,play_sou
 			}
 
 			// no one is on nade or knife level anymore
-			if(!keepFF) server_cmd("mp_friendlyfire 0");
+			if(!keepFF)
+			{
+				server_cmd("mp_friendlyfire 0"); // so console is notified
+				set_cvar_num("mp_friendlyfire",0); // so it changes instantly
+			}
 		}
 	}
 
