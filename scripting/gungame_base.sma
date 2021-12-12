@@ -32,7 +32,7 @@
 #include <hamsandwich>
 
 // defines to be left alone
-new const GG_VERSION[] =	"2.1.0";
+new const GG_VERSION[] =	"2.1.1";
 #define LANG_PLAYER_C		-76 // for gungame_print (arbitrary number)
 #define TNAME_SAVE		pev_noise3 // for blocking game_player_equip and player_weaponstrip
 #define MAX_PARAMS		32 // for _ggn_gungame_print and _ggn_gungame_hudmessage
@@ -5840,18 +5840,27 @@ public gungame_print(id,custom,tag,msg[],{Float,Sql,Result,_}:...)
 			replace_all(newMsg,190,"%n","^x03"); // %n = team color
 			replace_all(newMsg,190,"%g","^x04"); // %g = green
 			replace_all(newMsg,190,"%e","^x01"); // %e = regular
+
+			// now do our formatting (I used two variables because sharing one caused glitches)
+			if(tag) formatex(message,190,"^x04[%L]^x01 %s",player,"GUNGAME",newMsg);
+			else formatex(message,190,"^x01%s",newMsg);
 		}
 		else
 		{
 			replace_all(newMsg,190,"%n","");
 			replace_all(newMsg,190,"%g","");
 			replace_all(newMsg,190,"%e","");
+
+			// now do our formatting (I used two variables because sharing one caused glitches)
+			if(tag)
+			{
+				formatex(message,190,"[%L] %s",player,"GUNGAME",newMsg);
+			}
+			else
+			{
+				formatex(message,190,"%s",newMsg);
+			}
 		}
-
-		// now do our formatting (I used two variables because sharing one caused glitches)
-
-		if(tag) formatex(message,190,"^x04[%L]^x01 %s",player,"GUNGAME",newMsg);
-		else formatex(message,190,"^x01%s",newMsg);
 
 		message_begin(MSG_ONE,gmsgSayText,_,player);
 		write_byte((custom > 0) ? custom : player);
