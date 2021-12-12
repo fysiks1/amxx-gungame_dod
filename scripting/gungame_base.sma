@@ -89,6 +89,7 @@ gg_block_equips, gg_leader_display, gg_leader_display_x, gg_leader_display_y,
 gg_sound_takenlead, gg_sound_tiedlead, gg_sound_lostlead, gg_lead_sounds, gg_knife_elite,
 gg_teamplay, gg_teamplay_melee_mod, gg_teamplay_nade_mod, gg_suicide_penalty;
 new g_pPointPerKill;
+new gg_debugmode;
 
 // important per-mod weapon information
 new maxClip[36], maxAmmo[36], weaponSlots[36];
@@ -258,6 +259,9 @@ public plugin_init()
 
 	// manage pruning (longer delay for toggle_gungame)
 	set_task(2.0,"manage_pruning");
+
+	// Cvar for debug testing
+	gg_debugmode = register_cvar("gg_debugmode", "0");
 }
 
 // the hams that need to be hooked
@@ -350,6 +354,9 @@ public plugin_precache()
 public plugin_cfg()
 {
 	mp_friendlyfire = get_cvar_pointer("mp_friendlyfire");
+
+	// Disable debugging by default
+	set_pcvar_num(gg_debugmode, 0);
 
 	// we have to let mods set these because of default values
 	//gg_weapon_order = get_cvar_pointer("gg_weapon_order");
@@ -6191,6 +6198,12 @@ stock get_weapon_category(id=0,name[]="")
 stock can_score(id)
 {
 	if(!is_user_connected(id)) return 0;
+
+	// If debug endabled, allow scoring with single player
+	if( get_pcvar_num(gg_debugmode) )
+	{
+		return 1;
+	}
 
 	new player;
 	for(player=1;player<=maxPlayers;player++)
