@@ -81,7 +81,7 @@ gg_worldspawn_suicide, gg_handicap_on, gg_top10_handicap, gg_warmup_timer_settin
 gg_warmup_weapon, gg_sound_levelup, gg_sound_leveldown, gg_sound_levelsteal,
 gg_sound_nade, gg_sound_knife, gg_sound_welcome, gg_sound_triple, gg_sound_winner,
 gg_kills_per_lvl, gg_vote_custom, gg_changelevel_custom, gg_ammo_amount,
-gg_stats_file, gg_stats_prune, gg_refill_on_kill, gg_colored_messages, gg_tk_penalty,
+gg_stats_file, gg_stats_prune, gg_refill_on_kill, gg_tk_penalty,
 gg_save_temp, gg_stats_mode, gg_pickup_others, gg_stats_winbonus, gg_map_iterations,
 gg_warmup_multi, gg_stats_ip, gg_extra_nades, gg_endmap_setup, gg_autovote_rounds,
 gg_autovote_ratio, gg_autovote_delay, gg_autovote_time, gg_ignore_bots, gg_nade_refresh,
@@ -168,7 +168,6 @@ public plugin_init()
 	gg_map_setup = register_cvar("gg_map_setup",""); // defaults are per-mod
 	gg_endmap_setup = register_cvar("gg_endmap_setup","");
 	gg_join_msg = register_cvar("gg_join_msg","1");
-	gg_colored_messages = register_cvar("gg_colored_messages","1");
 	gg_save_temp = register_cvar("gg_save_temp","300"); // = 5 * 60 = 5 minutes
 	gg_map_iterations = register_cvar("gg_map_iterations","1");
 	gg_ignore_bots = register_cvar("gg_ignore_bots","0");
@@ -4261,7 +4260,7 @@ win(winner,loser)
 	for(i=0;i<5;i++)
 	{
 		if(teamplay) gungame_print(0,winner,1,"%L!!",LANG_PLAYER_C,"WON_TEAM",winnerName);
-		else gungame_print(0,winner,1,"%%n%s%%e %L!",winnerName,LANG_PLAYER_C,"WON");
+		else gungame_print(0,winner,1,"%s %L!",winnerName,LANG_PLAYER_C,"WON");
 	}
 
 	get_pcvar_string(gg_stats_file,sfFile,63);
@@ -5804,8 +5803,6 @@ public gungame_print(id,custom,tag,msg[],{Float,Sql,Result,_}:...)
 	}
 	else get_players(players,num);
 
-	new colored_messages = get_pcvar_num(gg_colored_messages);
-
 	for(i=0;i<num;i++)
 	{
 		player = players[i];
@@ -5834,32 +5831,14 @@ public gungame_print(id,custom,tag,msg[],{Float,Sql,Result,_}:...)
 			setarg(changed[j],0,LANG_PLAYER_C);
 		}
 
-		// optimized color swapping
-		if(cstrike && colored_messages)
+		// now do our formatting (I used two variables because sharing one caused glitches)
+		if(tag)
 		{
-			replace_all(newMsg,190,"%n","^x03"); // %n = team color
-			replace_all(newMsg,190,"%g","^x04"); // %g = green
-			replace_all(newMsg,190,"%e","^x01"); // %e = regular
-
-			// now do our formatting (I used two variables because sharing one caused glitches)
-			if(tag) formatex(message,190,"^x04[%L]^x01 %s",player,"GUNGAME",newMsg);
-			else formatex(message,190,"^x01%s",newMsg);
+			formatex(message,190,"[%L] %s",player,"GUNGAME",newMsg);
 		}
 		else
 		{
-			replace_all(newMsg,190,"%n","");
-			replace_all(newMsg,190,"%g","");
-			replace_all(newMsg,190,"%e","");
-
-			// now do our formatting (I used two variables because sharing one caused glitches)
-			if(tag)
-			{
-				formatex(message,190,"[%L] %s",player,"GUNGAME",newMsg);
-			}
-			else
-			{
-				formatex(message,190,"%s",newMsg);
-			}
+			formatex(message,190,"%s",newMsg);
 		}
 
 		message_begin(MSG_ONE,gmsgSayText,_,player);
