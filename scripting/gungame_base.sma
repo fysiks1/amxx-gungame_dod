@@ -26,7 +26,6 @@
 #include <amxmisc>
 #include <fakemeta>
 #include <fakemeta_util>
-#include <cstrike>
 #include <dodfun>
 #include <dodx>
 #include <hamsandwich>
@@ -96,9 +95,9 @@ new maxClip[36], maxAmmo[36], weaponSlots[36];
 
 // misc
 new scores_menu, level_menu, warmup = -1, warmupWeapon[24], len, voted, won, trailSpr, roundEnded,
-weaponOrder[WEAPONORDER_SIZE], menuText[512], dummy[2], tempSave[TEMP_SAVES][27], cstrike, czero, dod,
+weaponOrder[WEAPONORDER_SIZE], menuText[512], dummy[2], tempSave[TEMP_SAVES][27],
 maxPlayers, mapIteration = 1, cfgDir[32], top10[TOP_PLAYERS][81], modName[12], autovoted, autovotes[2],
-roundsElapsed, gameCommenced, cycleNum = -1, ham_registered, czbot_ham_registered, pattern[MAX_PARAMS],
+roundsElapsed, gameCommenced, cycleNum = -1, ham_registered, pattern[MAX_PARAMS],
 params[MAX_PARAMS][256], mp_friendlyfire, winSounds[MAX_WINSOUNDS][MAX_WINSOUND_LEN+1], numWinSounds,
 currentWinSound, hudSyncWarmup, hudSyncReqKills, hudSyncLDisplay, shouldWarmup, ggActive,
 teamLevel[3], teamLvlWeapon[3][24], teamScore[3];
@@ -235,9 +234,6 @@ public plugin_init()
 
 	// make sure we have this to trick mapchooser.amxx into working
 	if(!cvar_exists("mp_maxrounds")) register_cvar("mp_maxrounds","0",FCVAR_SERVER|FCVAR_EXTDLL|FCVAR_SPONLY);
-
-	// remember certain mods
-	if(!modName[0]) set_mod_shortcuts();
 
 	// ggfw forwards
 	register_forwards();
@@ -380,30 +376,9 @@ public native_filter(const name[],index,trap)
 	// trying to USE invalid native
 	if(trap == 1) return PLUGIN_CONTINUE; // that's not OK with me!
 
-	// loading CS native in a non-CS game
-	if(!cstrike && equal(name,"cs_",3))
-	 	 return PLUGIN_HANDLED; // let it slide
-
-	// loading DoD native in a non-DoD game
-	if(!dod && equal(name,"dod_",4))
-	 	 return PLUGIN_HANDLED; // let it slide
-
 	return PLUGIN_CONTINUE;
 }
 
-// catch module errors
-public module_filter(const module[])
-{
-	// loading CS module in a non-CS game
-	if(!cstrike && (equal(module,"cstrike") || equal(module,"csx")))
-	 	 return PLUGIN_HANDLED; // let it slide
-
-	// loading DoD module in a non-DoD game
-	if(!dod && (equal(module,"dodfun") || equal(module,"dodx")))
-	 	 return PLUGIN_HANDLED; // let it slide
-
-	return PLUGIN_CONTINUE;
-}
 
 /**********************************************************************
 * OUTGOING (NON-FAKEMETA) FORWARDS
@@ -430,13 +405,6 @@ public register_forwards()
 	fwh_same_team = CreateMultiForward("ggfw_same_team",ET_CONTINUE,FP_CELL,FP_CELL);
 	fwh_restart_round = CreateMultiForward("ggfw_restart_round",ET_CONTINUE,FP_CELL);
 	fwh_verify_death = CreateMultiForward("ggfw_verify_death",ET_CONTINUE,FP_CELL,FP_CELL,FP_ARRAY,FP_CELL);
-
-	if(!cstrike && !dod)
-	{
-		fwh_request_weapon_info = CreateMultiForward("ggfw_request_weapon_info",ET_IGNORE,FP_ARRAY,FP_ARRAY,FP_ARRAY);
-		fwh_set_user_bpammo = CreateMultiForward("ggfw_set_user_bpammo",ET_IGNORE,FP_CELL,FP_CELL,FP_CELL);
-		fwh_set_weapon_ammo = CreateMultiForward("ggfw_set_weapon_ammo",ET_IGNORE,FP_CELL,FP_CELL);
-	}
 }
 
 // below are simple shortcuts for calling forwards and getting their return value
@@ -584,9 +552,6 @@ public fws_set_weapon_ammo(weapon,ammo)
 // register all of our AMAZING natives!
 public plugin_natives()
 {
-	// mods have not been realized yet
-	if(!modName[0]) set_mod_shortcuts();
-
 	// oh, it's that thing
 	set_native_filter("native_filter");
 	set_module_filter("module_filter");
@@ -943,7 +908,6 @@ public client_disconnect(id)
 public client_putinserver(id)
 {
 	if(!ham_registered) set_task(1.0,"hook_ham",id);
-	if(czero && !czbot_ham_registered) set_task(1.0,"czbot_hook_ham",id);
 }
 
 // delay for private data to initialize
@@ -951,25 +915,8 @@ public hook_ham(id)
 {
 	if(ham_registered || !is_user_connected(id)) return;
 
-	// probably NOT a czero bot
-	if(!czero || !(pev(id,pev_flags) & FL_FAKECLIENT) || get_cvar_num("bot_quota") <= 0)
-	{
-		hook_hams(id);
-		ham_registered = 1;
-	}
-}
-
-// delay for private data to initialize
-public czbot_hook_ham(id)
-{
-	if(czbot_ham_registered || !is_user_connected(id)) return;
-
-	// probably a czero bot (if czero check done before set_task)
-	if((pev(id,pev_flags) & FL_FAKECLIENT) && get_cvar_num("bot_quota") > 0)
-	{
-		hook_hams(id);
-		czbot_ham_registered = 1;
-	}
+	hook_hams(id);
+	ham_registered = 1;
 }
 
 // remove a save
@@ -1766,7 +1713,6 @@ public cmd_say(id)
 		console_print(id,"*** Avalanche's %L %s %L ***",id,"GUNGAME",GG_VERSION,id,"RULES");
 		console_print(id,"%L",id,"RULES_CONSOLE_LINE1",num++);
 		console_print(id,"%L",id,"RULES_CONSOLE_LINE2",num++);
-		if(get_cvar_num("gg_cs_bomb_defuse_lvl")) console_print(id,"%L",id,"RULES_CONSOLE_LINE3",num++);
 		console_print(id,"%L",id,"RULES_CONSOLE_LINE4",num++);
 		if(get_pcvar_num(gg_ff_auto)) console_print(id,"%L",id,"RULES_CONSOLE_LINE5",num++);
 		if(turbo || !max_lvl) console_print(id,"%L",id,"RULES_CONSOLE_LINE6A",num++);
@@ -1776,7 +1722,6 @@ public cmd_say(id)
 		if(get_pcvar_num(gg_knife_pro)) console_print(id,"%L",id,"RULES_CONSOLE_LINE8",num++);
 		if(turbo) console_print(id,"%L",id,"RULES_CONSOLE_LINE9",num++);
 		if(get_pcvar_num(gg_knife_elite)) console_print(id,"%L",id,"RULES_CONSOLE_LINE10",num++);
-		if((cstrike) && (get_cvar_num("gg_cs_dm") || get_cvar_num("csdm_active"))) console_print(id,"%L",id,"RULES_CONSOLE_LINE11",num++);
 		if(get_pcvar_num(gg_teamplay)) console_print(id,"%L",id,"RULES_CONSOLE_LINE12",num++);
 		console_print(id,"****************************************************************");
 		console_print(id,"%L",id,"RULES_CONSOLE_LINE13");
@@ -3335,7 +3280,6 @@ stock refill_ammo(id,current=0)
 	}
 
 	// now do stupid grenade stuff.
-	// NOTE: considerably less stupid since we moved CS nade stuff.
 	else
 	{
 		// we don't have this nade yet
@@ -3395,11 +3339,6 @@ public show_welcome(id)
 		len += formatex(menuText[len],511-len,"%L^n",id,"WELCOME_MESSAGE_LINE4");
 		special = 1;
 	}
-	if(cstrike && (get_cvar_num("gg_cs_dm") || get_cvar_num("csdm_active")))
-	{
-		len += formatex(menuText[len],511-len,"%L^n",id,"WELCOME_MESSAGE_LINE5");
-		special = 1;
-	}
 	if(get_pcvar_num(gg_teamplay))
 	{
 		len += formatex(menuText[len],511-len,"%L^n",id,"WELCOME_MESSAGE_LINE6");
@@ -3449,10 +3388,6 @@ player_suicided(id)
 		get_user_name(id,name,31);
 
 		gungame_print(0,id,1,"%L",LANG_PLAYER_C,"SUICIDE_LEVEL_DOWN",name);
-
-		// this is going to start a respawn counter HUD message
-		if(cstrike && get_cvar_num("gg_cs_dm") && (get_cvar_num("gg_cs_dm_countdown") & 2))
-			return change_level(id,-1,_,0,1); // don't show message, always score
 
 		// show with message
 		return change_level(id,-1,_,_,1); // always score
@@ -4032,10 +3967,6 @@ stock give_level_weapon(id,notify=1,verify=1)
 	{
 		if(!(weapons & (1<<wpnid))) continue;
 
-		// ignore C4 and kevlar
-		if(cstrike && (wpnid == CSW_C4 || wpnid == 31))
-			continue;
-
 		alright = 0;
 		get_mod_weaponname(wpnid,wpnName,23);
 
@@ -4044,7 +3975,7 @@ stock give_level_weapon(id,notify=1,verify=1)
 		{
 			// if this weapon COULD BE SCOPED and I HAVE A NON-SCOPED VERSION or
 			// I HAVE A SCOPED VERSION, examine closer to check for consistency
-			if(dod && (equal(wpnName,"weapon_fg42") || equal(wpnName,"weapon_enfield"))
+			if( equal(wpnName,"weapon_fg42") || equal(wpnName,"weapon_enfield" )
 				 && (equal(wpnName[7],lvlWeapon[id]) || equal(wpnName[7],lvlWeapon[id][6])))
 			{
 				new wEnt = fm_find_ent_by_owner(maxPlayers,wpnName,id);
@@ -4103,7 +4034,7 @@ stock give_level_weapon(id,notify=1,verify=1)
 				if(!fws_is_melee(wpnName) || myCategory == mainCategory)
 				{
 					// undeploy machineguns first -- VERY IMPORTANT!
-					if(dod && dod_is_deployed(id) && (wpnid == DODW_BAR || wpnid == DODW_MG42
+					if( dod_is_deployed(id) && (wpnid == DODW_BAR || wpnid == DODW_MG42
 					|| wpnid == DODW_30_CAL || wpnid == DODW_MG34 || wpnid == DODW_FG42
 					|| wpnid == DODW_BREN))
 					{
@@ -4123,8 +4054,8 @@ stock give_level_weapon(id,notify=1,verify=1)
 
 	// don't try to give away weapons that don't exist in DoD
 	if(lvlWeapon[id][0] && !hasMain &&
-	(!dod || (!equal(lvlWeapon[id],"bayonet") && !equal(lvlWeapon[id],"garandbutt")
-		&& !equal(lvlWeapon[id],"enfbayonet") && !equal(lvlWeapon[id],"k43butt"))))
+	( !equal(lvlWeapon[id],"bayonet") && !equal(lvlWeapon[id],"garandbutt")
+		&& !equal(lvlWeapon[id],"enfbayonet") && !equal(lvlWeapon[id],"k43butt")))
 	{
 		formatex(wpnName,23,"weapon_%s",lvlWeapon[id]);
 
@@ -4351,10 +4282,8 @@ win(winner,loser)
 	{
 		new Float:time = float(fws_restart_round(15)) - 0.1;
 
-		set_task((time < 0.1) ? 0.1 : time,"restart_gungame",czero ? get_cvar_num("bot_stop") : 0);
+		set_task((time < 0.1) ? 0.1 : time,"restart_gungame", 0);
 		set_task(20.0,"stop_win_sound");
-
-		if(czero) server_cmd("bot_stop 1"); // freeze CZ bots
 	}
 }
 
@@ -4385,7 +4314,6 @@ public restart_gungame(old_bot_stop_value)
 		fm_set_user_godmode(player,0);
 		welcomed[player] = 1; // also don't show welcome again
 	}
-	if(czero) server_cmd("bot_stop %i",old_bot_stop_value); // unfreeze CZ bots
 
 	// only have warmup once?
 	if(!get_pcvar_num(gg_warmup_multi)) warmup = -13; // -13 is the magical stop number
@@ -5676,7 +5604,7 @@ stock get_gg_mapcycle_file(filename[],len)
 {
 	static testFile[64];
 
-	// cstrike/addons/amxmodx/configs/gungame_mapcycle.cfg
+	// dod/addons/amxmodx/configs/gungame_mapcycle.cfg
 	formatex(testFile,63,"%s/gungame_mapcycle.cfg",cfgDir);
 	if(file_exists(testFile))
 	{
@@ -5684,7 +5612,7 @@ stock get_gg_mapcycle_file(filename[],len)
 		return 1;
 	}
 
-	// cstrike/addons/amxmodx/configs/gungame_mapcycle.txt
+	// dod/addons/amxmodx/configs/gungame_mapcycle.txt
 	formatex(testFile,63,"%s/gungame_mapcycle.txt",cfgDir);
 	if(file_exists(testFile))
 	{
@@ -5692,7 +5620,7 @@ stock get_gg_mapcycle_file(filename[],len)
 		return 1;
 	}
 
-	// cstrike/gungame_mapcycle.cfg
+	// dod/gungame_mapcycle.cfg
 	testFile = "gungame_mapcycle.cfg";
 	if(file_exists(testFile))
 	{
@@ -5700,7 +5628,7 @@ stock get_gg_mapcycle_file(filename[],len)
 		return 1;
 	}
 
-	// cstrike/gungame_mapcycle.txt
+	// dod/gungame_mapcycle.txt
 	testFile = "gungame_mapcycle.txt";
 	if(file_exists(testFile))
 	{
@@ -5790,7 +5718,6 @@ stock num_players_on_level(checkLvl)
 	 return result;
 }
 
-// a butchered version of teame06's CS Color Chat Function
 public gungame_print(id,custom,tag,msg[],{Float,Sql,Result,_}:...)
 {
 	new changeCount, num, i, j, argnum = numargs(), player;
@@ -6230,18 +6157,15 @@ stock ham_give_weapon(id,weapon[])
 	if(!equal(weapon,"weapon_",7)) return 0;
 
 	new scoped;
-	if(dod)
+	if(equal(weapon,"weapon_scopedfg42"))
 	{
-		if(equal(weapon,"weapon_scopedfg42"))
-		{
-			scoped = 1;
-			formatex(weapon,11,"weapon_fg42");
-		}
-		else if(equal(weapon,"weapon_scopedenfield"))
-		{
-			scoped = 1;
-			formatex(weapon,14,"weapon_enfield");
-		}
+		scoped = 1;
+		formatex(weapon,11,"weapon_fg42");
+	}
+	else if(equal(weapon,"weapon_scopedenfield"))
+	{
+		scoped = 1;
+		formatex(weapon,14,"weapon_enfield");
 	}
 
 	new wEnt = engfunc(EngFunc_CreateNamedEntity,engfunc(EngFunc_AllocString,weapon));
@@ -6280,12 +6204,7 @@ stock ham_strip_weapon(id,weapon[])
 
 	set_pev(id,pev_weapons,pev(id,pev_weapons) & ~(1<<wId));
 
-	// CS
-	if(cstrike && (wId == CSW_C4 || wId == CSW_SMOKEGRENADE || wId == CSW_FLASHBANG || wId == CSW_HEGRENADE))
-		cs_set_user_bpammo(id,wId,0);
-
-	// DOD
-	else if(dod && (wId == DODW_HANDGRENADE || wId == DODW_STICKGRENADE || wId == DODW_MILLS_BOMB))
+	if( wId == DODW_HANDGRENADE || wId == DODW_STICKGRENADE || wId == DODW_MILLS_BOMB )
 		dod_set_user_ammo(id,wId,0);
 
 	return 1;
@@ -6361,46 +6280,16 @@ stock calculate_weapon_slots()
 	}
 }
 
-// set up some quick-reference variables
-stock set_mod_shortcuts()
-{
-	get_modname(modName,11);
-	if(equal(modName,"cstrike")) cstrike = 1;
-	else if(equal(modName,"czero"))
-	{
-		cstrike = 1;
-		czero = 1;
-	}
-	else if(equal(modName,"dod")) dod = 1;
-}
-
 // set important weapon information per-mod
 stock set_mod_weapon_information()
 {
-	 if(cstrike)
-	 {
-		maxClip = { -1, 13, -1, 10, 1, 7, 1, 30, 30, 1, 30, 20, 25, 30, 35, 25, 12, 20,
-			10, 30, 100, 8, 30, 30, 20, 2, 7, 30, 30, -1, 50, -1, -1, -1, -1, -1 };
+	maxClip = { -1, -1, -1, 7, 8, 8, 5, 30, 30, 5, 5, 20, 30, -1, -1, -1, -1, 250, 150, -1,
+		15, 75, 30, 20, 10, 10, 30, 30, 6, 1, 1, 1, 20, 15, -1, 10 };
 
-		maxAmmo = { -1, 52, -1, 90, -1, 32, -1, 100, 90, -1, 120, 100, 100, 90, 90, 90, 100, 100,
-			30, 120, 200, 32, 90, 120, 60, -1, 35, 90, 90, -1, 100, -1, -1, -1, -1, -1 };
+	maxAmmo = { -1, -1, -1, 21, 24, 88, 65, 210, 210, 55, 65, 260, 210, 3, 3, 1, 1, 500, 300, -1,
+		165, 450, 210, 180, 80, 60, 210, 180, 18, 5, 5, 5, 180, 165, -1, 60 };
 
-		calculate_weapon_slots();
-	 }
-	 else if(dod)
-	 {
-		maxClip = { -1, -1, -1, 7, 8, 8, 5, 30, 30, 5, 5, 20, 30, -1, -1, -1, -1, 250, 150, -1,
-			15, 75, 30, 20, 10, 10, 30, 30, 6, 1, 1, 1, 20, 15, -1, 10 };
-
-		maxAmmo = { -1, -1, -1, 21, 24, 88, 65, 210, 210, 55, 65, 260, 210, 3, 3, 1, 1, 500, 300, -1,
-			165, 450, 210, 180, 80, 60, 210, 180, 18, 5, 5, 5, 180, 165, -1, 60 };
-
-		calculate_weapon_slots();
-	 }
-	 else
-	 {
-	 	 fws_request_weapon_info(maxClip,maxAmmo,weaponSlots);
-	 }
+	calculate_weapon_slots();
 }
 
 // sets clip ammo, offset thanks to Wilson [29th ID]
@@ -6412,47 +6301,32 @@ stock dod_set_weapon_ammo(index,newammo)
 // per-mod backpack ammo update
 stock set_user_bpammo(id,weapon,ammo)
 {
-	 if(cstrike)
-	 {
-	 	if(weapon == CSW_KNIFE) return 0;
-	 	return cs_set_user_bpammo(id,weapon,ammo);
-	 }
-	 else if(dod) return dod_set_user_ammo(id,weapon,ammo);
-
-	 return fws_set_user_bpammo(id,weapon,ammo);
+	return dod_set_user_ammo(id,weapon,ammo);
 }
 
 // per-mod weapon clip update
 stock set_weapon_ammo(weapon,ammo)
 {
-	 if(cstrike) return cs_set_weapon_ammo(weapon,ammo);
-	 else if(dod) return dod_set_weapon_ammo(weapon,ammo);
-
-	 return fws_set_weapon_ammo(weapon,ammo);
+	return dod_set_weapon_ammo(weapon,ammo);
 }
 
 // DoD exception for get_weaponname
 stock get_mod_weaponname(weapon,ret[],retLen)
 {
-	 ret[0] = 0;
-	 if(dod) return dod_get_weaponname(weapon,ret,retLen);
-	 return get_weaponname(weapon,ret,retLen);
+	ret[0] = 0;
+	return dod_get_weaponname(weapon,ret,retLen);
 }
 
 // DoD exception for get_weaponid
 stock get_mod_weaponid(weapon[])
 {
-	if(dod) return dod_get_weaponid(weapon);
-	return get_weaponid(weapon);
+	return dod_get_weaponid(weapon);
 }
 
 // mod exceptiosn for get_user_deaths
 stock get_mod_user_deaths(id)
 {
-	 if(cstrike) return cs_get_user_deaths(id);
-	 else if(dod) return dod_get_pl_deaths(id);
-
-	 return get_user_deaths(id);
+	return dod_get_pl_deaths(id);
 }
 
 // DoD has fancy weapon names. we just need the facts!
@@ -6530,15 +6404,13 @@ stock get_team_color(team,ret[],retLen)
 {
 	switch(team)
 	{
-		case 1: // terrorist, allies
+		case 1: // allies
 		{
-			if(cstrike) formatex(ret,retLen,"#FF3F3F");
-			else if(dod) formatex(ret,retLen,"#4C664C");
+			formatex(ret,retLen,"#4C664C");
 		}
-		case 2: // counter-terrorist, axis
+		case 2: // axis
 		{
-			if(cstrike) formatex(ret,retLen,"#99CCFF");
-			else if(dod) formatex(ret,retLen,"#FF3F3F");
+			formatex(ret,retLen,"#FF3F3F");
 		}
 	}
 }
@@ -6546,47 +6418,34 @@ stock get_team_color(team,ret[],retLen)
 // gets the name of a team
 stock get_team_name(team,ret[],retLen)
 {
-	 // fast lookups
-	 if(cstrike)
-	 {
-	 	 switch(team)
-	 	 {
-	 	 	 case 1: return formatex(ret,retLen,"TERRORIST");
-	 	 	 case 2: return formatex(ret,retLen,"CT");
-	 	 	 case 3: return formatex(ret,retLen,"SPECTATOR");
-	 	 	 default: return formatex(ret,retLen,"UNASSIGNED");
-	 	 }
-	 }
-	 else if(dod)
-	 {
-	 	 switch(team)
-	 	 {
-	 	 	 case 1: return formatex(ret,retLen,"Allies");
-	 	 	 case 2: return formatex(ret,retLen,"Axis");
-	 	 	 default: return formatex(ret,retLen,"Spectator");
-	 	 }
-	 }
+	// fast lookups
+	switch(team)
+	{
+		case 1: return formatex(ret,retLen,"Allies");
+		case 2: return formatex(ret,retLen,"Axis");
+		default: return formatex(ret,retLen,"Spectator");
+	}
 
-	 // otherwise, do it the hard way
-	 new player;
-	 for(player=1;player<=maxPlayers;player++)
-	 {
-	 	 if(is_user_connected(player) && get_user_team(player) == team)
-	 	 	 return get_user_team(player,ret,retLen);
-	 }
+	// otherwise, do it the hard way
+	new player;
+	for(player=1;player<=maxPlayers;player++)
+	{
+		if(is_user_connected(player) && get_user_team(player) == team)
+			return get_user_team(player,ret,retLen);
+	}
 
-	 return formatex(ret,retLen,"");
+	return formatex(ret,retLen,"");
 }
 
 // gets the amount of players on a team
 stock team_player_count(team)
 {
-	 new player, count;
-	 for(player=1;player<=maxPlayers;player++)
-	 {
-	 	 if(is_user_connected(player) && get_user_team(player) == team)
-	 	 	 count++;
-	 }
+	new player, count;
+	for(player=1;player<=maxPlayers;player++)
+	{
+		if(is_user_connected(player) && get_user_team(player) == team)
+			count++;
+	}
 
-	 return count;
+	return count;
 }
